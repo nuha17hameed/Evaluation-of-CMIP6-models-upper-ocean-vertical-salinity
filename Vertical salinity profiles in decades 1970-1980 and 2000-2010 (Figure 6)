@@ -1,0 +1,116 @@
+import pandas as pd
+import numpy as np
+from mat4py import loadmat
+import netCDF4
+import matplotlib
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from numpy import mean
+import netCDF4 as nc
+import nc_time_axis
+import xarray as xr
+import matplotlib.cm as cm
+import matplotlib.colors as colors
+from matplotlib.colors import LinearSegmentedColormap
+import scipy.io as spio
+from matplotlib.pyplot import fill_betweenx
+import os
+from scipy import interpolate
+import matplotlib.colors as colors
+import string
+import warnings
+import seaborn as sns
+from matplotlib.legend import Legend
+
+#creating data arrays for the observational data
+dm= spio.loadmat('/Users/nuhahameed/Documents/Data for MSci/ITPAJX_Robert .mat')
+mo=dm['AJX'][0,0]['mo'][0]
+nl=np.zeros(12)
+TA=np.zeros([12,500])
+SA=np.zeros([12,500])
+for i,m in enumerate(mo):
+    TA[m-1][np.where(~np.isnan(dm['AJX'][0,0]['T'][i,:]))]+=dm['AJX'][0,0]['T'][i,:][np.where(~np.isnan(dm['AJX'][0,0]['T'][i,:]))]
+    SA[m-1][np.where(~np.isnan(dm['AJX'][0,0]['S'][i,:]))]+=dm['AJX'][0,0]['S'][i,:][np.where(~np.isnan(dm['AJX'][0,0]['S'][i,:]))]
+    nl[m-1]+=1
+TA/=nl[:,np.newaxis]
+SA/=nl[:,np.newaxis]
+
+mo=dm['ITP'][0,0]['mo'][0]
+nl=np.zeros(12)
+TI=np.zeros([12,500])
+SI=np.zeros([12,500])
+for i,m in enumerate(mo):
+    TI[m-1][np.where(~np.isnan(dm['ITP'][0,0]['T'][i,:]))]+=dm['ITP'][0,0]['T'][i,:][np.where(~np.isnan(dm['ITP'][0,0]['T'][i,:]))]
+    SI[m-1][np.where(~np.isnan(dm['ITP'][0,0]['S'][i,:]))]+=dm['ITP'][0,0]['S'][i,:][np.where(~np.isnan(dm['ITP'][0,0]['S'][i,:]))]
+#    TI[m-1]+=dm['ITP'][0,0]['T'][i,:]
+#    SI[m-1]+=dm['ITP'][0,0]['S'][i,:]
+    nl[m-1]+=1
+TI/=nl[:,np.newaxis]
+SI/=nl[:,np.newaxis]
+
+depth_res = 1  # depth resolution in meters
+depth_values = np.arange(500) * depth_res  # create array of depth values
+
+AJX_avg_salinity = np.mean(SA, axis=0)  # compute average salinity across all months
+ITP_avg_salinity = np.nanmean(SI, axis=0) #compute average salinity across all months
+
+input_folder = '/Volumes/Seagate Hub/cmip6_downloader/data/Salinity models/'
+myfiles = os.listdir(input_folder)
+
+for f in myfiles:
+    if '._so' in f:
+        myfiles.remove(f)
+
+colors = sns.color_palette("husl", len(myfiles))
+linestyles = ['-', '--', '-.', ':'] * (len(myfiles) // 4 + 1)
+
+fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(29, 12), sharex=True)
+plt.subplots_adjust(right=0.7, hspace=0.3)
+
+def plot_salinity_profile(ax, file, color, linestyle, start_year, end_year):
+    ds = xr.open_dataset(input_folder + file)
+    if 'CESM' in file:
+        ds['lev'] = ds['lev'] / 100
+
+    model_name = file.split('so.')[-1].split('.')[0]
+    #start_year = 2000
+    #end_year = 2010
+    ds_mean = ds.so.isel(time=np.arange((start_year-1850)*12, (end_year+1-1850)*12, 1)).mean(dim='time')
+    y = ds_mean.mean(dim=['longitude', 'latitude'])
+    
+    ax.plot(y, ds['lev'], label=model_name, color=color, linewidth=2, linestyle=linestyle)
+
+for file, color, linestyle in zip(myfiles, colors, linestyles):
+    plot_salinity_profile(axs[0], file, color, linestyle, 1970, 1980)
+    plot_salinity_profile(axs[1], file, color, linestyle, 2000, 2010)
+
+axs[0].plot(AJX_avg_salinity, depth_values, label='1975 AIDJEX', color='red', linewidth = 4)
+axs[1].plot(ITP_avg_salinity, depth_values, label='2006-2012 ITP', color='orange', linewidth=4)
+
+for i, ax in enumerate(axs):
+    ax.set_ylabel('Depth (m)', fontsize=14)
+    ax.set_xlabel('Salinity (g/kg)', fontsize=14)
+    ax.set_ylim(0, 150)
+    ax.set_xlim(27, 35)
+    ax.tick_params(axis='y', labelsize=12)
+    ax.tick_params(axis='x', labelsize=12)
+    ax.invert_yaxis()
+    
+    # Add subplot labels
+    label = chr(97 + i)  # Convert index to ASCII character ('a', 'b', etc.)
+    ax.text(-0.1, 1, label, fontsize=19, fontweight='bold', transform=ax.transAxes)
+    
+axs[0].set_title('1970-1980 Salinity Profiles', fontsize=25)
+axs[1].set_title('2000-2010 Salinity Profiles', fontsize=25)
+
+# Get the handles and labels from the first subplot
+handles, labels = axs[0].get_legend_handles_labels()
+
+# Add the handle and label for the ITP line from the second subplot
+handles_itp, labels_itp = axs[1].get_legend_handles_labels()
+handles += handles_itp[-1:]
+labels += labels_itp[-1:]
+
+# Create a shared legend for all subplots
+fig.legend(handles, labels, fontsize=15, bbox_to_anchor=(0.68, -0.1, 0.15, 1), ncol=1, borderaxespad=0)
+  
