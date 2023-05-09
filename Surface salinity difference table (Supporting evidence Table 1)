@@ -1,0 +1,36 @@
+import os
+import xarray as xr
+import pandas as pd
+
+input_folder = '/Volumes/Seagate Hub/cmip6_downloader/data/Salinity models/'
+myfiles = os.listdir(input_folder)
+
+# Remove any filenames that contain '._so'
+myfiles = [f for f in myfiles if '._so' not in f]
+
+# Create a list to store the differences in average salinity at depth 0
+salinity_diffs = []
+
+# Iterate over each file
+for file in myfiles:
+    ds = xr.open_dataset(input_folder+file)
+    
+    # Extract the model name from the filename
+    model_name = file.split('so.')[-1].split('.')[0]
+    
+    # Calculate the mean salinity at depth 0 for each year
+    salinity_1970 = ds['so'].sel(time='1970', lev=ds['lev'].sel(method='nearest', lev=0)).mean().values
+    salinity_2010 = ds['so'].sel(time='2010', lev=ds['lev'].sel(method='nearest', lev=0)).mean().values
+    
+    # Calculate the difference in average salinity at depth 0 between 1970 and 2010
+    salinity_diff = salinity_2010 - salinity_1970
+    
+    # Add the model name and salinity difference to the list
+    salinity_diffs.append([model_name, salinity_diff])
+    
+# Create a pandas DataFrame from the list
+df = pd.DataFrame(salinity_diffs, columns=['Model name', 'Salinity difference'])
+df = df.sort_values('Salinity difference', ascending=False)
+
+
+df.to_excel('So_differences.xlsx', index=False)
