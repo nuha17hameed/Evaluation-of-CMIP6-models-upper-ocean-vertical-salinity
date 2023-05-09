@@ -1,0 +1,93 @@
+import pandas as pd
+import numpy as np
+from mat4py import loadmat
+import netCDF4
+import matplotlib
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from numpy import mean
+import netCDF4 as nc
+import nc_time_axis
+import xarray as xr
+import matplotlib.cm as cm
+import matplotlib.colors as colors
+from matplotlib.colors import LinearSegmentedColormap
+import scipy.io as spio
+from matplotlib.pyplot import fill_betweenx
+import os
+from scipy import interpolate
+import matplotlib.colors as colors
+import string
+import warnings
+import seaborn as sns
+from matplotlib.legend import Legend
+
+#creating data arrays for the observational data
+dm= spio.loadmat('/Users/nuhahameed/Documents/Data for MSci/ITPAJX_Robert .mat')
+mo=dm['AJX'][0,0]['mo'][0]
+nl=np.zeros(12)
+TA=np.zeros([12,500])
+SA=np.zeros([12,500])
+for i,m in enumerate(mo):
+    TA[m-1][np.where(~np.isnan(dm['AJX'][0,0]['T'][i,:]))]+=dm['AJX'][0,0]['T'][i,:][np.where(~np.isnan(dm['AJX'][0,0]['T'][i,:]))]
+    SA[m-1][np.where(~np.isnan(dm['AJX'][0,0]['S'][i,:]))]+=dm['AJX'][0,0]['S'][i,:][np.where(~np.isnan(dm['AJX'][0,0]['S'][i,:]))]
+    nl[m-1]+=1
+TA/=nl[:,np.newaxis]
+SA/=nl[:,np.newaxis]
+
+mo=dm['ITP'][0,0]['mo'][0]
+nl=np.zeros(12)
+TI=np.zeros([12,500])
+SI=np.zeros([12,500])
+for i,m in enumerate(mo):
+    TI[m-1][np.where(~np.isnan(dm['ITP'][0,0]['T'][i,:]))]+=dm['ITP'][0,0]['T'][i,:][np.where(~np.isnan(dm['ITP'][0,0]['T'][i,:]))]
+    SI[m-1][np.where(~np.isnan(dm['ITP'][0,0]['S'][i,:]))]+=dm['ITP'][0,0]['S'][i,:][np.where(~np.isnan(dm['ITP'][0,0]['S'][i,:]))]
+#    TI[m-1]+=dm['ITP'][0,0]['T'][i,:]
+#    SI[m-1]+=dm['ITP'][0,0]['S'][i,:]
+    nl[m-1]+=1
+TI/=nl[:,np.newaxis]
+SI/=nl[:,np.newaxis]
+
+depth_res = 1  # depth resolution in meters
+depth_values = np.arange(500) * depth_res  # create array of depth values
+
+AJX_avg_salinity = np.mean(SA, axis=0)  # compute average salinity across all months
+ITP_avg_salinity = np.nanmean(SI, axis=0) #compute average salinity across all months
+
+def plot_salinity_depth(years, salinity_depth_data):
+    for i, data in enumerate(salinity_depth_data):
+        Year = ['1970', '1980', '1990', '2000', '2010']
+        plt.plot(data, np.arange(0, 150, 1), label=years[i], color=plt.cm.viridis(i/len(Year)), linewidth = 4)
+    plt.ylim(150, 0)
+    plt.xlim(27,35)
+    plt.xlabel('Salinity (g/kg)', fontsize = 15)
+    plt.ylabel('Depth (m)', fontsize = 15)
+    plt.title(f"Multi Model Mean", fontsize = 20)
+    
+    plt.plot(AJX_avg_salinity, depth_values, label='1975 AIDJEX', color='red', linewidth = 4)
+    plt.plot(ITP_avg_salinity, depth_values, label='2006-2012 ITP', color='orange', linewidth = 4)
+    plt.legend()
+    plt.savefig('Multi Model Mean.png')
+    plt.show()
+
+# Loop over all files and calculate decadal average salinity data
+all_salinity_depth_data = {}
+for year in ['1970', '1980', '1990', '2000', '2010']:
+    salinity_depth_data = []
+    for file in all_files:
+        salinity_depth_data.append(calc_mean_so(xr.open_dataset(input_folder+file), year))
+    all_salinity_depth_data[year] = salinity_depth_data
+
+# Interpolate the data
+interpolated_salinity_data = {}
+for year, salinity_depth_data in all_salinity_depth_data.items():
+    interpolated_salinity_data[year] = [interp(array[0]) for array in salinity_depth_data]
+
+# Calculate the mean salinity data for each decade
+mean_salinity_data = {}
+for year, interpolated_salinity in interpolated_salinity_data.items():
+    mean_salinity_data[year] = np.mean(interpolated_salinity, axis=0)
+
+# Plot the mean salinity data for all decades
+plot_salinity_depth(['1970', '1980', '1990', '2000', '2010'], list(mean_salinity_data.values()))
+
